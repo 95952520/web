@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:cache="http://www.springframework.org/schema/cache"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+            http://www.springframework.org/schema/tx
+            http://www.springframework.org/schema/tx/spring-tx-4.0.xsd
+            http://www.springframework.org/schema/aop
+            http://www.springframework.org/schema/aop/spring-aop-4.0.xsd
+            http://www.springframework.org/schema/context
+            http://www.springframework.org/schema/context/spring-context-4.0.xsd http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache.xsd"
+       default-autowire="byName">
+
+    <!-- 扫描的包路径 去掉mvc的注解 -->
+    <context:component-scan base-package="com.benq.nbweb">
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    </context:component-scan>
+
+    <!-- 标准配置,本地特殊配置，服务器配置 -->
+    <context:property-placeholder
+            location="classpath*:/baseconfig.properties"
+            system-properties-mode="OVERRIDE" ignore-resource-not-found="true"
+            ignore-unresolvable="true" />
+
+    <!-- 配置mysql数据源 -->
+    <bean id="dataSource_mysql" class="com.alibaba.druid.pool.DruidDataSource" init-method="init"
+          destroy-method="close">
+        <!-- 数据库基本信息配置 -->
+        <property name="url" value="${mysql_jdbc.url}"/>
+        <property name="username" value="${mysql_jdbc.username}"/>
+        <property name="password" value="${mysql_jdbc.password}"/>
+        <property name="driverClassName" value="${mysql_jdbc.driver}"/>
+        <!--属性类型是字符串，通过别名的方式配置扩展插件，常用的插件有：
+           监控统计用的filter:stat
+           日志用的filter:log4j
+           防御SQL注入的filter:wall -->
+        <property name="filters" value="${filters}"/>
+        <!-- 最大并发连接数 -->
+        <property name="maxActive" value="${maxActive}"/>
+        <!-- 初始化连接数量 -->
+        <property name="initialSize" value="${initialSize}"/>
+        <!-- 配置获取连接等待超时的时间 -->
+        <property name="maxWait" value="${maxWait}"/>
+        <!-- 最小空闲连接数 -->
+        <property name="minIdle" value="${minIdle}"/>
+        <!-- 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒 -->
+        <property name="timeBetweenEvictionRunsMillis" value="${timeBetweenEvictionRunsMillis}"/>
+        <!-- 配置一个连接在池中最小生存的时间，单位是毫秒 -->
+        <property name="minEvictableIdleTimeMillis" value="${minEvictableIdleTimeMillis}"/>
+        <!-- 用来检测连接是否有效的sql，要求是一个查询语句-->
+        <property name="validationQuery" value="${validationQuery}"/>
+        <!-- 申请连接的时候检测 -->
+        <property name="testWhileIdle" value="${testWhileIdle}"/>
+        <!-- 申请连接时执行validationQuery检测连接是否有效，配置为true会降低性能 -->
+        <property name="testOnBorrow" value="${testOnBorrow}"/>
+        <!-- 归还连接时执行validationQuery检测连接是否有效，配置为true会降低性能  -->
+        <property name="testOnReturn" value="${testOnReturn}"/>
+        <!-- 要启用PSCache，必须配置大于0，当大于0时，poolPreparedStatements自动触发修改为true -->
+        <!--<property name="maxOpenPreparedStatements" value="${maxOpenPreparedStatements}" />-->
+        <!-- 打开removeAbandoned功能 -->
+        <property name="removeAbandoned" value="${removeAbandoned}"/>
+        <!-- 1800秒，也就是30分钟 -->
+        <property name="removeAbandonedTimeout" value="${removeAbandonedTimeout}"/>
+        <!-- 将当前关闭动作记录到日志 -->
+        <property name="logAbandoned" value="${logAbandoned}"/>
+    </bean>
+
+    <!-- mybatis文件 -->
+    <bean id="sqlSessionFactory_mysql" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource_mysql"/>
+        <!-- 自动扫描entity目录，省略Configuration.xml里手工配置 -->
+        <property name="mapperLocations" value="classpath:com/benq/nbweb/mapper/*.xml"/>
+    </bean>
+
+    <bean id="mapperScanner_mysql" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.group.project.dao"/>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory_mysql"/>
+    </bean>
+
+    <!-- 配置事务管理器 -->
+    <bean id="transactionManager_mysql" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource_mysql"/>
+    </bean>
+
+    <!-- 注解方式配置事务 -->
+    <tx:annotation-driven transaction-manager="transactionManager_mysql"/>
+
+    <!-- redis相关 -->
+    <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <property name="maxTotal" value="${redis.pool.maxActive}" />
+        <property name="maxIdle" value="${redis.pool.maxIdle}" />
+        <property name="maxWaitMillis" value="${redis.pool.maxWait}" />
+        <property name="testOnBorrow" value="${redis.pool.testOnBorrow}" />
+    </bean>
+    <bean id="jedisConnectionFactory"
+          class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
+        <property name="hostName" value="${redis.host}" />
+        <property name="port" value="${redis.port}" />
+        <property name="password" value="${redis.password}" />
+        <property name="timeout" value="${redis.timeout}" />
+        <property name="usePool" value="${redis.usePool}" />
+        <property name="database" value="${redis.database}"/>
+        <property name="poolConfig" ref="jedisPoolConfig" />
+    </bean>
+
+    <bean id="stringRedisSerializer"
+          class="org.springframework.data.redis.serializer.StringRedisSerializer" />
+
+    <bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+        <property name="connectionFactory" ref="jedisConnectionFactory" />
+        <property name="keySerializer" ref="stringRedisSerializer" />
+        <property name="hashKeySerializer" ref="stringRedisSerializer" />
+    </bean>
+    <bean id="redisCacheManager" class="org.springframework.data.redis.cache.RedisCacheManager">
+        <constructor-arg index="0" ref="redisTemplate" />
+        <property name="defaultExpiration" value="3600" />
+    </bean>
+    <cache:annotation-driven cache-manager="redisCacheManager" />
+
+    <bean id="pointCut" class="com.group.project.core.common.PointCutForTime"></bean>
+    <aop:config>
+        <aop:pointcut expression="execution(* com.group.project.service.impl.*.*(..))" id="toBePointed"/>
+        <aop:aspect ref="pointCut">
+            <aop:around method="around" pointcut-ref="toBePointed"/>
+        </aop:aspect>
+    </aop:config>
+
+</beans>
